@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cari Koordinat GPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3347;
+    --accent: #4ade80;
+    --accent2: #22d3ee;
+    --text: #e8eaf6;
+    --muted: #7b82a0;
+    --danger: #f87171;
+    --radius: 12px;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 10% 10%, rgba(74,222,128,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 90% 80%, rgba(34,211,238,0.05) 0%, transparent 60%);
+  }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-left: 48px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 12px;
+    resize: vertical;
+    line-height: 1.6;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+
+  button {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+    padding: 9px 16px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0a1a0f;
+    border-color: var(--accent);
+    flex: 1;
+    justify-content: center;
+  }
+
+  .btn-primary:hover { background: #22c55e; filter: brightness(1.05); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+  }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+
+  .spinner {
+    display: none;
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .spinner.show { display: block; }
+
+  .spinner::before {
+    content: '';
+    display: block;
+    width: 24px; height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 0 auto 8px;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result-card {
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .result-card.show { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .coord-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .coord-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .coord-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  .coord-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .dot-lat { background: var(--accent); }
+  .dot-lng { background: var(--accent2); }
+
+  .coord-value {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .alamat-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+
+  .alamat-text {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .action-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .btn-action {
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 12px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+  }
+
+  .btn-action:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-action.copied { border-color: var(--accent); color: var(--accent); }
+
+  #map {
+    height: 220px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-top: 12px;
+    display: none;
+  }
+
+  #map.show { display: block; }
+
+  .error-box {
+    display: none;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.3);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--danger);
+    margin-top: 10px;
+  }
+
+  .error-box.show { display: block; }
+
+  .history-list {
+    display: none;
+  }
+
+  .history-list.show { display: block; }
+
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 12px;
+  }
+
+  .history-item:hover { background: var(--surface2); }
+
+  .history-info { flex: 1; min-width: 0; }
+
+  .history-addr {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .history-coord {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .btn-del {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 1;
+  }
+
+  .btn-del:hover { color: var(--danger); background: rgba(248,113,113,0.1); }
+
+  .empty-history {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    padding: 1rem;
+  }
+
+  footer {
+    margin-top: 2rem;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 480px) {
+    .coord-grid { grid-template-columns: 1fr; }
+    .coord-value { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-row">
+      <div class="logo-icon">📍</div>
+      <h1>Cari Koordinat GPS</h1>
+    </div>
+    <p class="subtitle">Masukkan alamat → dapatkan Latitud &amp; Longitud</p>
+  </header>
+
+  <div class="card">
+    <div class="section-label">Alamat</div>
+    <textarea id="alamat" rows="3" placeholder="Contoh: Jabatan Perangkaan Malaysia Selangor, Shah Alam"></textarea>
+    <div class="btn-row">
+      <button class="btn-ghost" onclick="clearAll()">Padam</button>
+      <button class="btn-primary" id="btnCari" onclick="cariKoordinat()">🔍 Cari Koordinat</button>
+    </div>
+    <div id="error" class="error-box"></div>
+  </div>
+
+  <div class="spinner" id="loading">Sedang mencari koordinat...</div>
+
+  <div class="card result-card" id="result">
+    <div class="section-label">Keputusan</div>
+    <div class="coord-grid">
+      <div class="coord-box">
+        <div class="coord-label"><span class="coord-dot dot-lat"></span> Latitud</div>
+        <div class="coord-value" id="latVal">—</div>
+      </div>
+      <div class="coord-box">
+        <div class="coord-label"><span class="coord-dot dot-lng"></span> Longitud</div>
+        <div class="coord-value" id="lngVal">—</div>
+      </div>
+    </div>
+    <div class="alamat-box">
+      <div class="coord-label">Alamat disahkan</div>
+      <div class="alamat-text" id="alamatPenuh"></div>
+    </div>
+    <div class="action-row">
+      <button class="btn-action" id="btnSalin" onclick="salinKoordinat()">📋 Salin Koordinat</button>
+      <button class="btn-action" onclick="salinSemua()">📄 Salin Semua</button>
+      <button class="btn-action" onclick="bukaGMaps()">🗺️ Google Maps</button>
+      <button class="btn-action" onclick="bukaWaze()">🚗 Waze</button>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div class="card" id="historyCard" style="display:none;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div class="section-label" style="margin:0;">Carian terkini</div>
+      <button class="btn-ghost" style="font-size:12px; padding:4px 10px;" onclick="clearHistory()">Padam semua</button>
+    </div>
+    <div class="history-list show" id="historyList"></div>
+  </div>
+
+  <footer>
+    Menggunakan OpenStreetMap Nominatim &bull; Data © OpenStreetMap contributors
+  </footer>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map = null, marker = null;
+let currentLat = null, currentLng = null;
+const HISTORY_KEY = 'koordinat_history';
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveHistory(lat, lng, alamat, alamatPenuh) {
+  let h = getHistory();
+  h.unshift({ lat, lng, alamat: alamat.substring(0, 80), alamatPenuh, masa: Date.now() });
+  if (h.length > 10) h = h.slice(0, 10);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+  renderHistory();
+}
+
+function renderHistory() {
+  const h = getHistory();
+  const card = document.getElementById('historyCard');
+  const list = document.getElementById('historyList');
+  if (h.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = h.map((item, i) => `
+    <div class="history-item" onclick="loadHistory(${i})">
+      <div class="history-info">
+        <div class="history-addr">${item.alamat}</div>
+        <div class="history-coord">${item.lat}, ${item.lng}</div>
+      </div>
+      <button class="btn-del" onclick="deleteHistory(event,${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function loadHistory(i) {
+  const h = getHistory();
+  const item = h[i];
+  document.getElementById('alamat').value = item.alamat;
+  paparHasil(item.lat, item.lng, item.alamatPenuh);
+}
+
+function deleteHistory(e, i) {
+  e.stopPropagation();
+  let h = getHistory();
+  h.splice(i, 1);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+  renderHistory();
+}
+
+function clearHistory() {
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+
+async function cariKoordinat() {
+  const alamat = document.getElementById('alamat').value.trim();
+  const errorEl = document.getElementById('error');
+  const loading = document.getElementById('loading');
+  const result = document.getElementById('result');
+  const btn = document.getElementById('btnCari');
+
+  errorEl.className = 'error-box';
+  result.className = 'card result-card';
+
+  if (!alamat) {
+    errorEl.textContent = '⚠️ Sila masukkan alamat terlebih dahulu.';
+    errorEl.className = 'error-box show';
+    return;
+  }
+
+  btn.disabled = true;
+  loading.className = 'spinner show';
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(alamat)}&limit=1&addressdetails=1&accept-language=ms,en`;
+
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'KoordinatApp/1.0 (DOSM Selangor)',
+        'Accept-Language': 'ms,en'
+      }
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const data = await res.json();
+    loading.className = 'spinner';
+    btn.disabled = false;
+
+    if (!data || data.length === 0) {
+      errorEl.textContent = '❌ Alamat tidak dijumpai. Cuba masukkan nama tempat, poskod, atau alamat yang lebih lengkap.';
+      errorEl.className = 'error-box show';
+      return;
+    }
+
+    const r = data[0];
+    const lat = parseFloat(r.lat).toFixed(6);
+    const lng = parseFloat(r.lon).toFixed(6);
+    saveHistory(lat, lng, alamat, r.display_name);
+    paparHasil(lat, lng, r.display_name);
+
+  } catch (e) {
+    loading.className = 'spinner';
+    btn.disabled = false;
+    errorEl.textContent = '❌ Ralat sambungan. Pastikan anda ada akses internet dan cuba semula.';
+    errorEl.className = 'error-box show';
+    console.error(e);
+  }
+}
+
+function paparHasil(lat, lng, alamatPenuh) {
+  currentLat = lat;
+  currentLng = lng;
+
+  document.getElementById('latVal').textContent = lat;
+  document.getElementById('lngVal').textContent = lng;
+  document.getElementById('alamatPenuh').textContent = alamatPenuh;
+  document.getElementById('result').className = 'card result-card show';
+
+  const mapEl = document.getElementById('map');
+  mapEl.className = 'show';
+
+  setTimeout(() => {
+    if (!map) {
+      map = L.map('map', { zoomControl: true, scrollWheelZoom: false }).setView([lat, lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map);
+    } else {
+      map.setView([lat, lng], 16);
+    }
+
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${lat}, ${lng}</b>`).openPopup();
+    map.invalidateSize();
+  }, 100);
+}
+
+function salinKoordinat() {
+  if (!currentLat) return;
+  navigator.clipboard.writeText(`${currentLat}, ${currentLng}`).then(() => {
+    const btn = document.getElementById('btnSalin');
+    btn.textContent = '✅ Disalin!';
+    btn.className = 'btn-action copied';
+    setTimeout(() => {
+      btn.textContent = '📋 Salin Koordinat';
+      btn.className = 'btn-action';
+    }, 2000);
+  });
+}
+
+function salinSemua() {
+  if (!currentLat) return;
+  const alamat = document.getElementById('alamatPenuh').textContent;
+  const teks = `Alamat: ${alamat}\nLatitud: ${currentLat}\nLongitud: ${currentLng}\nGoogle Maps: https://maps.google.com/?q=${currentLat},${currentLng}`;
+  navigator.clipboard.writeText(teks);
+}
+
+function bukaGMaps() {
+  if (!currentLat) return;
+  window.open(`https://www.google.com/maps?q=${currentLat},${currentLng}`, '_blank');
+}
+
+function bukaWaze() {
+  if (!currentLat) return;
+  window.open(`https://waze.com/ul?ll=${currentLat},${currentLng}&navigate=yes`, '_blank');
+}
+
+function clearAll() {
+  document.getElementById('alamat').value = '';
+  document.getElementById('error').className = 'error-box';
+  document.getElementById('result').className = 'card result-card';
+  document.getElementById('map').className = '';
+  currentLat = null; currentLng = null;
+}
+
+document.getElementById('alamat').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); cariKoordinat(); }
+});
+
+renderHistory();
+</script>
+</body>
+</html>
